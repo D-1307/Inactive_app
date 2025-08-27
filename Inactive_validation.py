@@ -25,7 +25,7 @@ def highlight_duplicates(df, duplicate_index_set):
         return ['background-color: #FFCCCC' if idx in duplicate_index_set else '' for idx in row.index]
     return df.style.apply(lambda x: ['background-color: #FFCCCC' if x.name in duplicate_index_set else '' for _ in x], axis=1)
 
-st.title("CSV Upload & Validation with Column Mapping")
+st.title("CSV/Excel Upload")
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv", "xlsx"])
 
@@ -210,3 +210,4 @@ if uploaded_file:
         file_name="processed_data.csv",
         mime="text/csv"
     )
+
