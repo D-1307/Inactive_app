@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from io import BytesIO
+import io
+import requests
 
 st.set_page_config(page_title="CSV Upload & Validation Tool", layout="wide")
 
@@ -21,14 +22,13 @@ def map_columns(df, mapping_dict):
     return df
 
 def highlight_duplicates(df, duplicate_index_set):
-    def highlight_row(row):
-        return ['background-color: #FFCCCC' if idx in duplicate_index_set else '' for idx in row.index]
-    return df.style.apply(lambda x: ['background-color: #FFCCCC' if x.name in duplicate_index_set else '' for _ in x], axis=1)
+    return df.style.apply(
+        lambda x: ['background-color: #FFCCCC' if x.name in duplicate_index_set else '' for _ in x], axis=1
+    )
 
 st.title("CSV/Excel Upload")
 
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv", "xlsx"])
-
+uploaded_file = st.file_uploader("Upload your CSV or Excel file", type=["csv", "xlsx"])
 if uploaded_file:
     try:
         if uploaded_file.name.endswith('.csv'):
@@ -41,12 +41,10 @@ if uploaded_file:
 
     original_cols = list(df_uploaded.columns)
     cleaned_cols = clean_columns(original_cols)
-
     st.write("### Uploaded Columns (cleaned)")
     st.write(cleaned_cols)
 
     missing_required = [col for col in EXPECTED_COLUMNS.keys() if col not in cleaned_cols]
-
     if missing_required:
         st.warning("Some required columns are not detected or mismatched. Please map them below.")
         user_mappings = {}
@@ -58,14 +56,12 @@ if uploaded_file:
                 key=req_col
             )
             user_mappings[selected_col] = EXPECTED_COLUMNS[req_col]
-
         if st.button("Confirm column mapping"):
             rename_map = {orig: new for orig, new in zip(original_cols, cleaned_cols)}
             rename_map.update(user_mappings)
             df_uploaded = map_columns(df_uploaded, rename_map)
             st.success("Columns mapped successfully.")
             st.experimental_rerun()
-
         st.stop()
     else:
         rename_map = {}
@@ -80,34 +76,34 @@ if uploaded_file:
     progress_bar = st.progress(0)
     status_text = st.empty()
 
-    import time
     progress_bar.progress(10)
     status_text.text("Cleaning duplicate entries...")
-
     df_uploaded['Date'] = pd.to_datetime(df_uploaded['Date']).dt.date
-
     subset_cols = ['Client ID', 'Date']
-
     dup_mask = df_uploaded.duplicated(subset=subset_cols, keep=False)
     duplicates = df_uploaded[dup_mask].copy()
-
-    duplicates['DuplicateType'] = np.where(duplicates.duplicated(subset=subset_cols, keep='first'), 'Dropped Duplicate', 'Original')
-
+    duplicates['DuplicateType'] = np.where(
+        duplicates.duplicated(subset=subset_cols, keep='first'),
+        'Dropped Duplicate',
+        'Original'
+    )
     uploaded_shape = df_uploaded.shape
     num_duplicates = duplicates.shape[0] // 2  # duplicates are pairs
 
     progress_bar.progress(30)
-    status_text.text("Loading internal CSV data for validation...")
+    status_text.text("Loading internal Excel data for validation...")
 
-    # Load internal CSV from Google Drive link
+    # Load internal Excel from Google Sheets export link
     try:
-        FILE_ID = "1sbrdYv1-UinANt1ek46VmN-1_OXEWTQv"
-        download_url = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
-
-        cdb = pd.read_csv(download_url)
+        FILE_ID = "1zJULAZyrMx87ZVJ0ErtqFnc07Rvm-WSd"
+        download_url = f"https://docs.google.com/spreadsheets/d/{FILE_ID}/export?format=xlsx"
+        response = requests.get(download_url)
+        response.raise_for_status()
+        file_bytes = io.BytesIO(response.content)
+        cdb = pd.read_excel(file_bytes)
         cdb['Date'] = pd.to_datetime(cdb['Date']).dt.date
     except Exception as e:
-        st.error(f"Failed to load internal CSV for validation: {e}")
+        st.error(f"Failed to load internal Excel for validation: {e}")
         st.stop()
 
     progress_bar.progress(50)
@@ -125,9 +121,7 @@ if uploaded_file:
     def find_previous_info(row, cdb):
         acc = row['Client ID']
         current_date = pd.to_datetime(row['Date'])
-
         prev_records = cdb[(cdb['accountId'] == acc) & (pd.to_datetime(cdb['Date']) < current_date)]
-
         if prev_records.empty:
             return pd.Series({
                 'prev_last_activity': '',
@@ -179,7 +173,6 @@ if uploaded_file:
 
     progress_bar.progress(90)
     status_text.text("Analysis complete.")
-
     st.write(f"### Uploaded Data Shape: {uploaded_shape}")
     st.write(f"### Number of duplicate pairs found (original + duplicate): {num_duplicates}")
 
@@ -210,5 +203,3 @@ if uploaded_file:
         file_name="processed_data.csv",
         mime="text/csv"
     )
-
-
