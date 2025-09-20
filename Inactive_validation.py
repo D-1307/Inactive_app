@@ -178,7 +178,7 @@ if uploaded_file:
 
     if num_duplicates > 0:
         show_dups = st.button("Show Duplicate Entries")
-        if show_dups:
+        if show_dups:https://drive.google.com/drive/folders/1oFWPv2HTq2mCLSoP1_-S3qL_QiwTgDde?usp=sharing
             styled_dups = highlight_duplicates(duplicates, duplicate_index_set=set(duplicates.index))
             st.write("Original and duplicate rows highlighted (duplicates in red):")
             st.dataframe(styled_dups)
@@ -203,4 +203,5 @@ if uploaded_file:
         file_name="processed_data.csv",
         mime="text/csv"
     )
+
 
